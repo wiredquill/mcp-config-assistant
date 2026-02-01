@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #F5F5F7;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow: hidden;
+}
+
+.monaco-editor {
+  padding-top: 8px;
+}
+
+/* Custom Block Highlights for Visual Scoping */
+.mcp-block-0 { background: rgba(0, 113, 227, 0.04); border-left: 4px solid #0071E3; }
+.mcp-block-1 { background: rgba(175, 82, 222, 0.04); border-left: 4px solid #AF52DE; }
+.mcp-block-2 { background: rgba(48, 176, 199, 0.04); border-left: 4px solid #30B0C7; }
