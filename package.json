@@ -1,4 +1,3 @@
-// package.json
 {
   "name": "mcp-config-assistant",
   "private": true,
@@ -21,6 +20,7 @@
   "devDependencies": {
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
+    "@types/file-saver": "^2.0.7",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.18",
     "postcss": "^8.4.35",

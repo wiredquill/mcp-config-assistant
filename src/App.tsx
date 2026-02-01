@@ -1,78 +1,220 @@
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
-import { Download, Copy, Check, Zap, Settings2 } from 'lucide-react';
-import { APP_CONFIGS, detectAppFromConfig, mergeMcpConfigs, detectGenericPattern } from './logic/mcpEngine';
-import Inspector from './components/Inspector';
+import { Download, Copy, Check, Zap, Settings2, Info, Github } from 'lucide-react';
 import { saveAs } from 'file-saver';
 
+// Internal Logic Imports
+import { APP_CONFIGS, detectAppFromConfig, mergeMcpConfigs, detectGenericPattern } from './logic/mcpEngine';
+import Inspector from './components/Inspector';
+
 export default function App() {
+  // --- State Management ---
   const [targetApp, setTargetApp] = useState('claude');
   const [sourceJson, setSourceJson] = useState('{\n  "mcpServers": {}\n}');
-  const [snippetJson, setSnippetJson] = useState('{\n  "everything-server": {\n    "command": "npx",\n    "args": ["@modelcontextprotocol/server-everything"]\n  }\n}');
+  const [snippetJson, setSnippetJson] = useState('{\n  "everything-server": {\n    "command": "npx",\n    "args": ["-y", "@modelcontextprotocol/server-everything"],\n    "env": {\n       "API_KEY": "YOUR_KEY_HERE"\n    }\n  }\n}');
   const [resultJson, setResultJson] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState<any>(null);
 
+  // --- Effects ---
+  // Auto-detect app based on Panel 1 content
   useEffect(() => {
     const detected = detectAppFromConfig(sourceJson);
-    if (detected && targetApp !== detected) setTargetApp(detected);
-  }, [sourceJson]);
+    if (detected && targetApp !== detected && targetApp !== 'generic') {
+      setTargetApp(detected);
+    }
+  }, [sourceJson, targetApp]);
 
+  // Sync the Inspector with whatever is in the Snippet Panel (Panel 2)
+  useEffect(() => {
+    try {
+      const parsed = JSON.parse(snippetJson);
+      const firstKey = Object.keys(parsed)[0];
+      if (firstKey) setSelectedBlock(parsed[firstKey]);
+    } catch (e) {
+      // Snippet is currently invalid JSON while typing
+    }
+  }, [snippetJson]);
+
+  // --- Handlers ---
   const handleMerge = () => {
     try {
       const source = JSON.parse(sourceJson);
       const snippet = JSON.parse(snippetJson);
-      const key = targetApp === 'generic' ? detectGenericPattern(source) : APP_CONFIGS[targetApp].key;
+      
+      let key = APP_CONFIGS[targetApp].key;
+      if (targetApp === 'generic') {
+        key = detectGenericPattern(source);
+      }
+
       const result = mergeMcpConfigs(source, snippet, key);
       setResultJson(JSON.stringify(result, null, 2));
-    } catch (e) { alert("Invalid JSON format in inputs."); }
+    } catch (e) {
+      alert("Validation Error: Please ensure both input panels contain valid JSON code.");
+    }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(resultJson);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
+  };
+
+  const updateSnippetFromInspector = (updatedServerData: any) => {
+    try {
+      const parsed = JSON.parse(snippetJson);
+      const firstKey = Object.keys(parsed)[0];
+      if (firstKey) {
+        parsed[firstKey] = updatedServerData;
+        setSnippetJson(JSON.stringify(parsed, null, 2));
+      }
+    } catch (e) {
+      console.error("Could not sync inspector to snippet");
+    }
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#F5F5F7] text-[#1D1D1F]">
-      <header className="h-14 bg-white border-b border-[#D2D2D7] flex items-center justify-between px-6 shrink-0">
-        <div className="flex items-center gap-2">
-          <Zap className="text-blue-600" size={20} fill="currentColor" />
-          <span className="font-bold tracking-tight">MCP Config Assistant</span>
+    <div className="flex flex-col h-screen bg-[#F5F5F7] text-[#1D1D1F] font-sans selection:bg-blue-500/20">
+      
+      {/* Liquid Glass Header */}
+      <header className="h-16 bg-white/80 backdrop-blur-md border-b border-[#D2D2D7] flex items-center justify-between px-8 z-20 sticky top-0">
+        <div className="flex items-center gap-3 group">
+          <div className="w-9 h-9 bg-gradient-to-br from-[#0071E3] to-[#AF52DE] rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:rotate-12 transition-transform duration-300">
+            <Zap size={20} className="text-white fill-white" />
+          </div>
+          <div>
+            <h1 className="font-bold text-lg tracking-tight">MCP Config Assistant</h1>
+            <p className="text-[10px] uppercase tracking-widest text-[#0071E3] font-black">2026 Production Beta</p>
+          </div>
         </div>
-        <select 
-          value={targetApp} 
-          onChange={(e) => setTargetApp(e.target.value)}
-          className="bg-[#F5F5F7] border border-[#D2D2D7] rounded-md text-sm px-3 py-1"
-        >
-          {Object.entries(APP_CONFIGS).map(([key, cfg]) => <option key={key} value={key}>{cfg.name}</option>)}
-        </select>
+        
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 bg-[#F5F5F7] p-1.5 rounded-2xl border border-gray-200">
+            <span className="text-[10px] font-black text-gray-400 ml-3 uppercase tracking-tighter">Destination</span>
+            <select 
+              value={targetApp} 
+              onChange={(e) => setTargetApp(e.target.value)}
+              className="bg-white border-none rounded-xl text-sm font-bold px-4 py-1.5 shadow-sm focus:ring-2 focus:ring-[#0071E3] outline-none cursor-pointer hover:bg-gray-50 transition-colors"
+            >
+              {Object.entries(APP_CONFIGS).map(([key, cfg]) => (
+                <option key={key} value={key}>{cfg.name}</option>
+              ))}
+            </select>
+          </div>
+          <a href="https://github.com" target="_blank" rel="noreferrer" className="text-gray-400 hover:text-black transition-colors">
+            <Github size={20} />
+          </a>
+        </div>
       </header>
 
-      <main className="flex flex-1 overflow-hidden p-4 gap-4">
-        <div className="flex-1 flex flex-col gap-4 min-w-0">
-          <div className="flex-1 flex gap-4">
-            <div className="flex-1 bg-white rounded-xl border border-[#D2D2D7] overflow-hidden flex flex-col">
-              <div className="p-2 border-b text-[10px] font-bold text-gray-400 uppercase bg-gray-50">Source Config</div>
-              <Editor height="100%" defaultLanguage="json" value={sourceJson} onChange={(v) => setSourceJson(v || '')} options={{ minimap: { enabled: false }, fontSize: 12 }} />
-            </div>
-            <div className="flex-1 bg-white rounded-xl border border-[#D2D2D7] overflow-hidden flex flex-col">
-              <div className="p-2 border-b text-[10px] font-bold text-gray-400 uppercase bg-gray-50">New Snippet</div>
-              <Editor height="100%" defaultLanguage="json" value={snippetJson} onChange={(v) => setSnippetJson(v || '')} options={{ minimap: { enabled: false }, fontSize: 12 }} />
-              <button onClick={handleMerge} className="m-3 bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">Merge Config</button>
-            </div>
-          </div>
-          <div className="h-1/3 bg-[#FBFBFD] rounded-xl border border-[#D2D2D7] overflow-hidden flex flex-col">
-            <div className="p-2 border-b text-[10px] font-bold text-blue-500 uppercase bg-white flex justify-between">
-              <span>Output: {APP_CONFIGS[targetApp].file}</span>
-              <div className="flex gap-4">
-                <button onClick={() => { navigator.clipboard.writeText(resultJson); setCopySuccess(true); setTimeout(()=>setCopySuccess(false),2000)}} className="flex items-center gap-1 hover:text-blue-700">
-                  {copySuccess ? <Check size={12}/> : <Copy size={12}/>} Copy
+      <main className="flex flex-1 overflow-hidden p-6 gap-6">
+        
+        {/* Main Editor Section */}
+        <div className="flex-1 flex flex-col gap-6 min-w-0">
+          <div className="flex-1 flex gap-6 min-h-0">
+            
+            {/* Panel 1: Original Config (Indigo) */}
+            <section className="flex-1 flex flex-col bg-white rounded-3xl border border-gray-200 shadow-xl shadow-gray-200/40 overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-50 flex justify-between items-center bg-indigo-50/40">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-indigo-400" />
+                  <h2 className="text-[11px] font-black uppercase tracking-widest text-indigo-500">1. Original Config</h2>
+                </div>
+                <Info size={14} className="text-indigo-300 cursor-help" />
+              </div>
+              <div className="flex-1 pt-2">
+                <Editor 
+                  height="100%" 
+                  defaultLanguage="json" 
+                  value={sourceJson} 
+                  onChange={(v) => setSourceJson(v || '')} 
+                  options={{ 
+                    minimap: { enabled: false }, 
+                    fontSize: 13, 
+                    lineNumbers: 'off', 
+                    padding: { top: 10 },
+                    fontFamily: 'JetBrains Mono, Menlo, monospace'
+                  }} 
+                />
+              </div>
+            </section>
+
+            {/* Panel 2: New Snippet (Purple) */}
+            <section className="flex-1 flex flex-col bg-white rounded-3xl border border-gray-200 shadow-xl shadow-gray-200/40 overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-50 flex justify-between items-center bg-purple-50/40">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-[#AF52DE]" />
+                  <h2 className="text-[11px] font-black uppercase tracking-widest text-[#AF52DE]">2. New MCP Server</h2>
+                </div>
+                <Settings2 size={14} className="text-purple-300" />
+              </div>
+              <div className="flex-1 pt-2">
+                <Editor 
+                  height="100%" 
+                  defaultLanguage="json" 
+                  value={snippetJson} 
+                  onChange={(v) => setSnippetJson(v || '')} 
+                  options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: 'off', padding: { top: 10 } }} 
+                />
+              </div>
+              <div className="p-4 bg-gray-50/30">
+                <button 
+                  onClick={handleMerge} 
+                  className="w-full bg-gradient-to-r from-[#0071E3] to-[#AF52DE] text-white py-3.5 rounded-2xl font-black shadow-lg shadow-blue-500/25 hover:brightness-110 active:scale-[0.97] transition-all flex items-center justify-center gap-3 uppercase text-[11px] tracking-[0.15em]"
+                >
+                  <Zap size={16} fill="white" /> Construct Merge
                 </button>
-                <button onClick={() => saveAs(new Blob([resultJson]), APP_CONFIGS[targetApp].file)} className="flex items-center gap-1 hover:text-blue-700">
-                  <Download size={12}/> Download
+              </div>
+            </section>
+          </div>
+
+          {/* Panel 3: Merged Result (Green/Success) */}
+          <section className="h-[35%] bg-white rounded-3xl border-2 border-green-500/10 shadow-2xl shadow-green-500/5 overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 bg-green-50/30 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-green-500 rounded-xl flex items-center justify-center shadow-lg shadow-green-500/20">
+                  <Check size={18} color="white" strokeWidth={3} />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold tracking-tight">Deployment Ready</h2>
+                  <p className="text-[10px] font-mono text-gray-400">{APP_CONFIGS[targetApp].file}</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button 
+                  onClick={handleCopy} 
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#F5F5F7] text-xs font-bold hover:bg-gray-200 transition-all active:scale-95"
+                >
+                  {copySuccess ? <Check size={14} className="text-green-500" /> : <Copy size={14} />} 
+                  {copySuccess ? "Copied to Clipboard" : "Copy Code"}
+                </button>
+                <button 
+                  onClick={() => saveAs(new Blob([resultJson]), APP_CONFIGS[targetApp].file)} 
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1D1D1F] text-white text-xs font-bold hover:bg-black shadow-lg shadow-black/10 transition-all active:scale-95"
+                >
+                  <Download size={14} /> Download File
                 </button>
               </div>
             </div>
-            <Editor height="100%" defaultLanguage="json" value={resultJson} options={{ readOnly: true, minimap: { enabled: false }, fontSize: 12 }} />
-          </div>
+            <div className="flex-1 bg-[#FBFBFD]">
+              <Editor 
+                height="100%" 
+                defaultLanguage="json" 
+                value={resultJson} 
+                options={{ readOnly: true, minimap: { enabled: false }, fontSize: 13, padding: { top: 12 } }} 
+              />
+            </div>
+          </section>
         </div>
-        <Inspector data={selectedBlock} onUpdate={setSelectedBlock} />
+
+        {/* Sidebar Inspector Column */}
+        <aside className="w-80 flex flex-col gap-6 shrink-0">
+           <Inspector 
+              data={selectedBlock} 
+              onUpdate={updateSnippetFromInspector} 
+           />
+        </aside>
+
       </main>
     </div>
   );
